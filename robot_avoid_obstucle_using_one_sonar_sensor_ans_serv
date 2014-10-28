@@ -1,0 +1,319 @@
+
+#include <Servo.h>
+#include <NewPing.h>
+
+
+
+////////////////////////////////////////////////servo motor and sonar sensor ////////////////////////////////////////////
+
+const int dangerdistance = 30; //safety distance for obstacles (in cm)
+Servo panMotor;  // create a servo object 
+#define TRIGGER_PIN  3  // Arduino pin tied to trigger pin on the ultrasonic sensor.
+#define ECHO_PIN     2  // Arduino pin tied to echo pin on the ultrasonic sensor.
+#define MAX_distance 200 // Maximum distance we want to ping for (in centimeters). Maximum sensor distance is rated at 400-500cm.
+NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_distance); // NewPing setup of pins and maximum distance.
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////                 MOTOR               ///////////////////////////////////////////////////////////////////
+
+/*
+
+This code conducts a few simple manoeuvres to illustrate the functions:
+  - motorDrive(motorNumber, motorDirection, motorSpeed)
+  - motorBrake(motorNumber)
+  - motorStop(motorNumber)
+  - motorsStandby
+
+Connections:
+- Pin 5 ---> PWMA
+- Pin 7 ---> AIN2
+- Pin 8 ---> AIN1
+- Pin 11 ---> STBY
+- Pin 12 ---> BIN1
+- Pin 13 ---> BIN2
+- Pin 6 ---> PWMB
+
+- Motor 1: A01 and A02
+- Motor 2: B01 and B02
+
+*/
+
+//Define the Pins
+
+//Motor 1
+int pinAIN1 = 8; //Direction
+int pinAIN2 = 7; //Direction
+int pinPWMA = 5; //Speed
+
+//Motor 2
+int pinBIN1 = 12; //Direction
+int pinBIN2 = 13; //Direction
+int pinPWMB = 6; //Speed
+
+//Standby
+int pinSTBY = 11;
+
+//Constants to help remember the parameters
+static boolean turnCW = 0;  //for motorDrive function
+static boolean turnCCW = 1; //for motorDrive function
+static boolean motor1 = 0;  //for motorDrive, motorStop, motorBrake functions
+static boolean motor2 = 1;  //for motorDrive, motorStop, motorBrake functions
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+unsigned long time;    // timer for boucle do ... while 
+unsigned long timeplus;// timer for boucle do ... while
+
+int distance; 
+int uS;
+void setup() {
+  //Set the PIN Modes motor
+  pinMode(pinPWMA, OUTPUT);
+  pinMode(pinAIN1, OUTPUT);
+  pinMode(pinAIN2, OUTPUT);
+
+  pinMode(pinPWMB, OUTPUT);
+  pinMode(pinBIN1, OUTPUT);
+  pinMode(pinBIN2, OUTPUT);
+  pinMode(pinSTBY, OUTPUT);
+//Serial.begin(9600);
+    panMotor.write(90); 
+  delay(15000);// wait until I get ready
+  
+  panMotor.attach(4); // attaches the servo on pin 9 to the servo object 
+}
+
+//////////////////////////////////////////////////////////LOOP//////////////////////////////////////////////////
+
+void loop() {
+ 
+  panMotor.write(90); // turn a sonar sensor to 90 degree 
+
+  delay(500);
+ // ping sonar sensor to get distance 
+ int uS = sonar.ping();
+ int centerdistance = uS / US_ROUNDTRIP_CM;
+ 
+    if(centerdistance==0){centerdistance=200;}// fix newping library mistaken
+
+       if (centerdistance>dangerdistance) //if path is clear
+          {    
+         
+         
+//**********************************   WHILE NO OBSTACLE IN YOUR FRONT KEEP MOVING AND CHECK FOR OBSTACLE each 100 MS*******************
+
+
+ do   // (while sensor give less than 30cm keep robot move forward )
+{
+  int uS = sonar.ping();
+ int centerdistance = uS / US_ROUNDTRIP_CM;;  // check the sensors
+  delay(100);          // wait for sensors to stabilize
+ motorDrive(motor1, turnCW, 150);
+ motorDrive(motor2, turnCW, 150);
+} while (centerdistance < dangerdistance);
+
+
+
+}  
+  
+//----------------------- pathe is blocked -----------------
+    else //if path is blocked
+      {
+ motorBrake(motor1);
+ motorBrake(motor2);
+ if(centerdistance<dangerdistance)// if your distance is less then dangerdistance
+         {     
+           motorDrive(motor1, turnCCW, 180); //go back
+           motorDrive(motor2, turnCCW, 180);// go back 
+           delay(500);
+         
+ motorBrake(motor1);
+ motorBrake(motor2);
+       }
+ 
+    panMotor.write(5); // turn to your right
+      delay(500);
+      int rightdistance = sonar.ping()/US_ROUNDTRIP_CM; //scan to the right
+      delay(500);
+          if(rightdistance==0){rightdistance=200;}// fix newping library mistaken
+
+     panMotor.write(175);// turn left
+       delay(900);
+       int  leftdistance =  sonar.ping()/US_ROUNDTRIP_CM; //scan to the left
+       delay(500);
+if(leftdistance==0){leftdistance=200;}// fix newping library mistaken
+    
+  //////////////////////////////////////////////////////// COMPARE DISTANCE RIGHT AND LEFT ////////////////////////////////////////////////////////////////////////
+      
+    
+    if (leftdistance>rightdistance && leftdistance>dangerdistance) //if left is less obstructed and super than  dangerdistance
+  {
+ 
+  //Stop Motor1,Motor2
+  motorStop(motor1);
+  motorStop(motor2);
+ 
+  panMotor.write(175);//turn sonar to left " get ready to check left side of robot when it turn"
+  delay(400);
+   
+  time=millis();
+ do   // (do turn robot to left while sensor give less than 30cm and time not more then 800 ms )
+{
+ 
+  int uS = sonar.ping();
+  distance = uS / US_ROUNDTRIP_CM;;  // check the sensors
+  delay(100);          // wait for sensors to stabilize
+ //Turn towards motor1: Stop Motor1, slow Motor2
+  
+ motorDrive(motor1,turnCCW, 180);
+ motorDrive(motor2, turnCW, 180);
+ timeplus=millis();
+ 
+} while (distance > dangerdistance & timeplus-time<800);
+
+ motorBrake(motor1);
+ motorBrake(motor2);
+   
+  
+  
+  
+  
+  
+  panMotor.write(90);// turn sonar to origin position
+  delay(2000);
+
+
+
+  }
+  else if (rightdistance>leftdistance && rightdistance>dangerdistance) //if right is less obstructed and super than  dangerdistance
+  {    
+  //Stop Motor1,Motor2
+  motorStop(motor1);
+  motorStop(motor2);
+  panMotor.write(5);
+  delay(400);
+  
+   
+  
+  
+  
+  time=millis();
+ do   //(do turn robot to right while sensor give less than 30cm and time not more then 800 ms )
+{
+ 
+  int uS = sonar.ping();
+  distance = uS / US_ROUNDTRIP_CM;  // check the sensors
+  delay(100);          // wait for sensors to stabilize
+  
+ motorDrive(motor2,turnCCW, 180);
+ motorDrive(motor1, turnCW, 180);
+ timeplus=millis();
+ 
+ } while (distance > dangerdistance & timeplus-time<800);
+  motorBrake(motor1);
+  motorBrake(motor2);
+
+    
+  panMotor.write(90);
+  delay(2000);
+  
+     
+  
+  }
+  else // if no solution 
+  { 
+    // stop everything
+  motorBrake(motor1);
+  motorBrake(motor2);
+  motorsStandby();
+  panMotor.write(90);
+ delay(9000);
+   }
+  
+  }
+  
+    
+}
+
+
+/////////////////////////////                                    FUNCTIONS                                  /////////////////////////////////////////
+
+
+
+void motorDrive(boolean motorNumber, boolean motorDirection, int motorSpeed)
+{
+  /*
+  This Drives a specified motor, in a specific direction, at a specified speed:
+    - motorNumber: motor1 or motor2 ---> Motor 1 or Motor 2
+    - motorDirection: turnCW or turnCCW ---> clockwise or counter-clockwise
+    - motorSpeed: 0 to 255 ---> 0 = stop / 255 = fast
+  */
+
+  boolean pinIn1;  //Relates to AIN1 or BIN1 (depending on the motor number specified)
+
+ 
+//Specify the Direction to turn the motor
+  //Clockwise: AIN1/BIN1 = HIGH and AIN2/BIN2 = LOW
+  //Counter-Clockwise: AIN1/BIN1 = LOW and AIN2/BIN2 = HIGH
+  if (motorDirection == turnCW)
+    pinIn1 = HIGH;
+  else
+    pinIn1 = LOW;
+
+//Select the motor to turn, and set the direction and the speed
+  if(motorNumber == motor1)
+  {
+    digitalWrite(pinAIN1, pinIn1);
+    digitalWrite(pinAIN2, !pinIn1);  //This is the opposite of the AIN1
+    analogWrite(pinPWMA, motorSpeed);
+  }
+  else
+  {
+    digitalWrite(pinBIN1, pinIn1);
+    digitalWrite(pinBIN2, !pinIn1);  //This is the opposite of the BIN1
+    analogWrite(pinPWMB, motorSpeed);
+  }
+   
+ 
+
+//Finally , make sure STBY is disabled - pull it HIGH
+  digitalWrite(pinSTBY, HIGH);
+
+}
+
+void motorBrake(boolean motorNumber)
+{
+/*
+This "Short Brake"s the specified motor, by setting speed to zero
+*/
+
+  if (motorNumber == motor1)
+    analogWrite(pinPWMA, 0);
+  else
+    analogWrite(pinPWMB, 0);
+   
+}
+
+
+void motorStop(boolean motorNumber)
+{
+  /*
+  This stops the specified motor by setting both IN pins to LOW
+  */
+  if (motorNumber == motor1) {
+    digitalWrite(pinAIN1, LOW);
+    digitalWrite(pinAIN2, LOW);
+  }
+  else
+  {
+    digitalWrite(pinBIN1, LOW);
+    digitalWrite(pinBIN2, LOW);
+  } 
+}
+
+
+void motorsStandby()
+{
+  /*
+  This puts the motors into Standby Mode
+  */
+  digitalWrite(pinSTBY, LOW);
+}
